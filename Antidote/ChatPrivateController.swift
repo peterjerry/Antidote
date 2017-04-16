@@ -132,6 +132,7 @@ class ChatPrivateController: KeyboardNotificationController {
         loadViewWithBackgroundColor(theme.colorForType(.NormalBackground))
 
         createTableView()
+        createTableHeaderView()
         createNewMessagesView()
         createInputView()
         createEditMessageToolbar()
@@ -598,6 +599,12 @@ private extension ChatPrivateController {
         tableView.addGestureRecognizer(panGR)
     }
 
+    func createTableHeaderView() {
+        let headerView = ChatTableHeaderView()
+        headerView.transform = tableView!.transform
+        tableView?.tableHeaderView = headerView
+    }
+
     func createNewMessagesView() {
         newMessagesView = UIView()
         newMessagesView.backgroundColor = theme.colorForType(.ConnectingBackground)
@@ -689,6 +696,8 @@ private extension ChatPrivateController {
 
                     self.visibleMessages = self.visibleMessages + insertions.count - deletions.count
                     tableView.endUpdates()
+
+                    self.updateTableHeaderView()
 
                     if insertions.contains(0) {
                         self.handleNewMessage()
@@ -788,11 +797,47 @@ private extension ChatPrivateController {
 
                     self.audioButton.isEnabled = isConnected
                     self.videoButton.isEnabled = isConnected
-                    self.chatInputView.buttonsEnabled = isConnected
+                    self.chatInputView.buttonsEnabled = true
+
+                    self.updateTableHeaderView()
                 case .error(let error):
                     fatalError("\(error)")
             }
         }
+    }
+
+    func updateTableHeaderView() {
+       guard let friend = friend else {
+           setTableHeaderView(state: .none)
+           return
+       }
+
+       if friend.isConnected {
+           setTableHeaderView(state: friend.isTyping ? .friendTyping : .none)
+       }
+       else {
+           let predicate = NSPredicate(format: "messageText.isDelivered == NO AND senderUniqueIdentifier == nil")
+           let hasUnsendMessages = messages.objects(with: predicate).count > 0
+
+           setTableHeaderView(state: hasUnsendMessages ? .fauxOfflineMessagingEnabled : .none)
+       }
+    }
+
+    func setTableHeaderView(state: ChatTableHeaderView.State) {
+       guard let headerView = tableView?.tableHeaderView as? ChatTableHeaderView else {
+           return
+       }
+
+       guard headerView.state != state else {
+           return
+       }
+
+       headerView.state = state
+       headerView.setNeedsLayout()
+       headerView.layoutIfNeeded()
+       let height = headerView.systemLayoutSizeFitting(UILayoutFittingCompressedSize).height
+       headerView.frame.size.height = height
+       tableView?.tableHeaderView = headerView
     }
 
     func updateInputViewMaxHeight() {
